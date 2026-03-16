@@ -1,0 +1,708 @@
+-- =============================================================
+-- BASE DE DATOS: DESTINOS SOÑADOS S.A.
+-- Sistema de Administración de Servicios Turísticos
+-- =============================================================
+
+CREATE DATABASE IF NOT EXISTS destinos_sonados;
+USE destinos_sonados;
+
+-- =============================================================
+-- TABLAS
+-- =============================================================
+
+-- 1. DESTINOS TURÍSTICOS
+CREATE TABLE IF NOT EXISTS Destinos (
+    IDDestino       INT AUTO_INCREMENT PRIMARY KEY,
+    Nombre          VARCHAR(100)  NOT NULL,
+    Pais            VARCHAR(60)   NOT NULL,
+    Region          VARCHAR(80),
+    Coordenadas     VARCHAR(50),
+    Tipo            ENUM('Playa','Montaña','Ciudad','Rural') NOT NULL,
+    Descripcion     TEXT,
+    Temporadas      VARCHAR(150),
+    Popularidad     TINYINT UNSIGNED CHECK (Popularidad BETWEEN 1 AND 10),
+    Restricciones   TEXT,
+    Fotografias     TEXT          -- URLs separadas por coma
+);
+
+-- 2. PROVEEDORES LOCALES
+CREATE TABLE IF NOT EXISTS Proveedores (
+    IDProveedor     INT AUTO_INCREMENT PRIMARY KEY,
+    RazonSocial     VARCHAR(120)  NOT NULL,
+    TipoServicio    VARCHAR(80),
+    IDDestino       INT,
+    Direccion       VARCHAR(160),
+    Telefono        VARCHAR(30),
+    Correo          VARCHAR(100),
+    Contacto        VARCHAR(100),
+    Contrato        DATE,
+    FormaPago       VARCHAR(60),
+    Calificacion    TINYINT UNSIGNED CHECK (Calificacion BETWEEN 1 AND 5),
+    CONSTRAINT fk_prov_dest FOREIGN KEY (IDDestino) REFERENCES Destinos(IDDestino)
+);
+
+-- 3. ALOJAMIENTOS
+CREATE TABLE IF NOT EXISTS Alojamientos (
+    IDAlojamiento   INT AUTO_INCREMENT PRIMARY KEY,
+    NombreComercial VARCHAR(120)  NOT NULL,
+    Tipo            ENUM('Hotel','Hostal','Apartamento','Resort') NOT NULL,
+    Categoria       TINYINT UNSIGNED COMMENT 'Número de estrellas',
+    Direccion       VARCHAR(160),
+    Coordenadas     VARCHAR(50),
+    Contacto        VARCHAR(100),
+    Habitaciones    TEXT          COMMENT 'Características de habitaciones',
+    Servicios       TEXT,
+    PoliticaCancelacion TEXT,
+    Comision        DECIMAL(5,2)  COMMENT 'Porcentaje de comisión acordada'
+);
+
+-- 4. TRANSPORTES
+CREATE TABLE IF NOT EXISTS Transportes (
+    IDTransporte    INT AUTO_INCREMENT PRIMARY KEY,
+    Tipo            ENUM('Aéreo','Terrestre','Marítimo') NOT NULL,
+    Proveedor       VARCHAR(100),
+    Ruta            VARCHAR(200),
+    Horarios        TEXT,
+    Capacidad       SMALLINT UNSIGNED,
+    Duracion        VARCHAR(50)   COMMENT 'Duración estimada',
+    ServiciosABordo TEXT,
+    RestEquipaje    TEXT          COMMENT 'Restricciones de equipaje',
+    Tarifa          DECIMAL(10,2)
+);
+
+-- 5. ACTIVIDADES TURÍSTICAS
+CREATE TABLE IF NOT EXISTS Actividades (
+    IDActividad     INT AUTO_INCREMENT PRIMARY KEY,
+    Nombre          VARCHAR(120)  NOT NULL,
+    IDDestino       INT,
+    Tipo            ENUM('Cultural','Aventura','Gastronómica','Recreativa') NOT NULL,
+    Duracion        VARCHAR(50),
+    Dificultad      ENUM('Baja','Media','Alta'),
+    Equipamiento    TEXT,
+    Restricciones   TEXT,
+    PrecioPorPersona DECIMAL(10,2),
+    CapacidadMax    SMALLINT UNSIGNED,
+    IDProveedor     INT,
+    CONSTRAINT fk_act_dest FOREIGN KEY (IDDestino)   REFERENCES Destinos(IDDestino),
+    CONSTRAINT fk_act_prov FOREIGN KEY (IDProveedor) REFERENCES Proveedores(IDProveedor)
+);
+
+-- 6. PAQUETES TURÍSTICOS
+CREATE TABLE IF NOT EXISTS Paquetes (
+    IDPaquete       INT AUTO_INCREMENT PRIMARY KEY,
+    NombreComercial VARCHAR(120)  NOT NULL,
+    DestinosIncluidos TEXT        COMMENT 'IDs de destinos separados por coma',
+    DuracionDias    TINYINT UNSIGNED,
+    DuracionNoches  TINYINT UNSIGNED,
+    Transporte      VARCHAR(80),
+    Alojamiento     VARCHAR(80)   COMMENT 'Categoría de alojamiento',
+    Alimentacion    VARCHAR(80)   COMMENT 'Régimen alimenticio',
+    ActividadesIncluidas TEXT,
+    ActividadesOpcionales TEXT,
+    PrecioBase      DECIMAL(10,2) NOT NULL,
+    Temporadas      VARCHAR(150),
+    MinimoParticipantes TINYINT UNSIGNED,
+    Dificultad      ENUM('Baja','Media','Alta')
+);
+
+-- 7. GUÍAS TURÍSTICOS
+CREATE TABLE IF NOT EXISTS Guias (
+    IDGuia          INT AUTO_INCREMENT PRIMARY KEY,
+    Nombres         VARCHAR(80)   NOT NULL,
+    Apellidos       VARCHAR(80)   NOT NULL,
+    Documento       VARCHAR(30)   UNIQUE NOT NULL,
+    FechaNacimiento DATE,
+    Nacionalidad    VARCHAR(60),
+    Idiomas         VARCHAR(200),
+    Especialidades  TEXT,
+    Destinos        TEXT          COMMENT 'Destinos que conoce',
+    Certificaciones TEXT,
+    Desempeño       TINYINT UNSIGNED CHECK (Desempeño BETWEEN 1 AND 10),
+    Disponibilidad  ENUM('Disponible','No disponible','Parcial') DEFAULT 'Disponible'
+);
+
+-- 8. CLIENTES
+CREATE TABLE IF NOT EXISTS Clientes (
+    IDCliente       INT AUTO_INCREMENT PRIMARY KEY,
+    Tipo            ENUM('Individual','Grupo','Corporativo') NOT NULL,
+    NombreRazonSocial VARCHAR(150) NOT NULL,
+    Documento       VARCHAR(30)   UNIQUE NOT NULL,
+    Nacionalidad    VARCHAR(60),
+    Direccion       VARCHAR(160),
+    Telefono        VARCHAR(30),
+    Correo          VARCHAR(100),
+    Preferencias    TEXT,
+    Historial       TEXT,
+    Fidelizacion    VARCHAR(80)   COMMENT 'Programa de fidelización / nivel'
+);
+
+-- 9. RESERVAS
+CREATE TABLE IF NOT EXISTS Reservas (
+    IDReserva       INT AUTO_INCREMENT PRIMARY KEY,
+    FechaCreacion   DATETIME      DEFAULT CURRENT_TIMESTAMP,
+    IDCliente       INT           NOT NULL,
+    IDPaquete       INT,
+    FechaInicio     DATE          NOT NULL,
+    FechaFin        DATE          NOT NULL,
+    NumAdultos      TINYINT UNSIGNED DEFAULT 1,
+    NumNinos        TINYINT UNSIGNED DEFAULT 0,
+    SolicitudesEsp  TEXT,
+    PrecioTotal     DECIMAL(12,2) NOT NULL,
+    FormaPago       VARCHAR(60),
+    Abonos          DECIMAL(12,2) DEFAULT 0,
+    SaldoPendiente  DECIMAL(12,2) AS (PrecioTotal - Abonos) STORED,
+    Estado          ENUM('Pendiente','Confirmada','En curso','Finalizada','Cancelada') DEFAULT 'Pendiente',
+    CONSTRAINT fk_res_cli  FOREIGN KEY (IDCliente) REFERENCES Clientes(IDCliente),
+    CONSTRAINT fk_res_paq  FOREIGN KEY (IDPaquete) REFERENCES Paquetes(IDPaquete)
+);
+
+-- 10. PROMOCIONES
+CREATE TABLE IF NOT EXISTS Promociones (
+    IDPromocion     INT AUTO_INCREMENT PRIMARY KEY,
+    Nombre          VARCHAR(120)  NOT NULL,
+    Descripcion     TEXT,
+    PaquetesAplicables TEXT       COMMENT 'IDs de paquetes separados por coma',
+    FechaInicio     DATE,
+    FechaFin        DATE,
+    TipoDescuento   ENUM('Porcentaje','Monto fijo','Gratuidad') NOT NULL,
+    ValorDescuento  DECIMAL(10,2),
+    Condiciones     TEXT,
+    Canales         VARCHAR(200)  COMMENT 'Canales de venta aplicables',
+    Resultados      TEXT
+);
+
+
+-- =============================================================
+-- STORED PROCEDURES
+-- =============================================================
+
+DELIMITER $$
+
+-- ─────────────────────────────────────────────────────────────
+-- DESTINOS
+-- ─────────────────────────────────────────────────────────────
+
+CREATE PROCEDURE sp_InsertDestino(
+    IN p_Nombre VARCHAR(100), IN p_Pais VARCHAR(60), IN p_Region VARCHAR(80),
+    IN p_Coordenadas VARCHAR(50), IN p_Tipo VARCHAR(20), IN p_Descripcion TEXT,
+    IN p_Temporadas VARCHAR(150), IN p_Popularidad TINYINT,
+    IN p_Restricciones TEXT, IN p_Fotografias TEXT)
+BEGIN
+    INSERT INTO Destinos(Nombre,Pais,Region,Coordenadas,Tipo,Descripcion,
+        Temporadas,Popularidad,Restricciones,Fotografias)
+    VALUES(p_Nombre,p_Pais,p_Region,p_Coordenadas,p_Tipo,p_Descripcion,
+        p_Temporadas,p_Popularidad,p_Restricciones,p_Fotografias);
+    SELECT LAST_INSERT_ID() AS IDDestino;
+END$$
+
+CREATE PROCEDURE sp_UpdateDestino(
+    IN p_IDDestino INT,
+    IN p_Nombre VARCHAR(100), IN p_Pais VARCHAR(60), IN p_Region VARCHAR(80),
+    IN p_Coordenadas VARCHAR(50), IN p_Tipo VARCHAR(20), IN p_Descripcion TEXT,
+    IN p_Temporadas VARCHAR(150), IN p_Popularidad TINYINT,
+    IN p_Restricciones TEXT, IN p_Fotografias TEXT)
+BEGIN
+    UPDATE Destinos SET
+        Nombre=p_Nombre, Pais=p_Pais, Region=p_Region,
+        Coordenadas=p_Coordenadas, Tipo=p_Tipo, Descripcion=p_Descripcion,
+        Temporadas=p_Temporadas, Popularidad=p_Popularidad,
+        Restricciones=p_Restricciones, Fotografias=p_Fotografias
+    WHERE IDDestino=p_IDDestino;
+END$$
+
+CREATE PROCEDURE sp_DeleteDestino(IN p_IDDestino INT)
+BEGIN
+    DELETE FROM Destinos WHERE IDDestino=p_IDDestino;
+END$$
+
+CREATE PROCEDURE sp_GetDestino(IN p_IDDestino INT)
+BEGIN
+    SELECT * FROM Destinos WHERE IDDestino=p_IDDestino;
+END$$
+
+CREATE PROCEDURE sp_GetAllDestinos()
+BEGIN
+    SELECT * FROM Destinos ORDER BY Nombre;
+END$$
+
+
+-- ─────────────────────────────────────────────────────────────
+-- PAQUETES
+-- ─────────────────────────────────────────────────────────────
+
+CREATE PROCEDURE sp_InsertPaquete(
+    IN p_NombreComercial VARCHAR(120), IN p_DestinosIncluidos TEXT,
+    IN p_DuracionDias TINYINT, IN p_DuracionNoches TINYINT,
+    IN p_Transporte VARCHAR(80), IN p_Alojamiento VARCHAR(80),
+    IN p_Alimentacion VARCHAR(80), IN p_ActIncluidas TEXT,
+    IN p_ActOpcionales TEXT, IN p_PrecioBase DECIMAL(10,2),
+    IN p_Temporadas VARCHAR(150), IN p_MinimoParticipantes TINYINT,
+    IN p_Dificultad VARCHAR(10))
+BEGIN
+    INSERT INTO Paquetes(NombreComercial,DestinosIncluidos,DuracionDias,DuracionNoches,
+        Transporte,Alojamiento,Alimentacion,ActividadesIncluidas,ActividadesOpcionales,
+        PrecioBase,Temporadas,MinimoParticipantes,Dificultad)
+    VALUES(p_NombreComercial,p_DestinosIncluidos,p_DuracionDias,p_DuracionNoches,
+        p_Transporte,p_Alojamiento,p_Alimentacion,p_ActIncluidas,p_ActOpcionales,
+        p_PrecioBase,p_Temporadas,p_MinimoParticipantes,p_Dificultad);
+    SELECT LAST_INSERT_ID() AS IDPaquete;
+END$$
+
+CREATE PROCEDURE sp_UpdatePaquete(
+    IN p_IDPaquete INT,
+    IN p_NombreComercial VARCHAR(120), IN p_DestinosIncluidos TEXT,
+    IN p_DuracionDias TINYINT, IN p_DuracionNoches TINYINT,
+    IN p_Transporte VARCHAR(80), IN p_Alojamiento VARCHAR(80),
+    IN p_Alimentacion VARCHAR(80), IN p_ActIncluidas TEXT,
+    IN p_ActOpcionales TEXT, IN p_PrecioBase DECIMAL(10,2),
+    IN p_Temporadas VARCHAR(150), IN p_MinimoParticipantes TINYINT,
+    IN p_Dificultad VARCHAR(10))
+BEGIN
+    UPDATE Paquetes SET
+        NombreComercial=p_NombreComercial, DestinosIncluidos=p_DestinosIncluidos,
+        DuracionDias=p_DuracionDias, DuracionNoches=p_DuracionNoches,
+        Transporte=p_Transporte, Alojamiento=p_Alojamiento,
+        Alimentacion=p_Alimentacion, ActividadesIncluidas=p_ActIncluidas,
+        ActividadesOpcionales=p_ActOpcionales, PrecioBase=p_PrecioBase,
+        Temporadas=p_Temporadas, MinimoParticipantes=p_MinimoParticipantes,
+        Dificultad=p_Dificultad
+    WHERE IDPaquete=p_IDPaquete;
+END$$
+
+CREATE PROCEDURE sp_DeletePaquete(IN p_IDPaquete INT)
+BEGIN
+    DELETE FROM Paquetes WHERE IDPaquete=p_IDPaquete;
+END$$
+
+CREATE PROCEDURE sp_GetPaquete(IN p_IDPaquete INT)
+BEGIN
+    SELECT * FROM Paquetes WHERE IDPaquete=p_IDPaquete;
+END$$
+
+CREATE PROCEDURE sp_GetAllPaquetes()
+BEGIN
+    SELECT * FROM Paquetes ORDER BY NombreComercial;
+END$$
+
+
+-- ─────────────────────────────────────────────────────────────
+-- GUÍAS
+-- ─────────────────────────────────────────────────────────────
+
+CREATE PROCEDURE sp_InsertGuia(
+    IN p_Nombres VARCHAR(80), IN p_Apellidos VARCHAR(80),
+    IN p_Documento VARCHAR(30), IN p_FechaNacimiento DATE,
+    IN p_Nacionalidad VARCHAR(60), IN p_Idiomas VARCHAR(200),
+    IN p_Especialidades TEXT, IN p_Destinos TEXT,
+    IN p_Certificaciones TEXT, IN p_Desempeño TINYINT,
+    IN p_Disponibilidad VARCHAR(20))
+BEGIN
+    INSERT INTO Guias(Nombres,Apellidos,Documento,FechaNacimiento,Nacionalidad,
+        Idiomas,Especialidades,Destinos,Certificaciones,Desempeño,Disponibilidad)
+    VALUES(p_Nombres,p_Apellidos,p_Documento,p_FechaNacimiento,p_Nacionalidad,
+        p_Idiomas,p_Especialidades,p_Destinos,p_Certificaciones,p_Desempeño,p_Disponibilidad);
+    SELECT LAST_INSERT_ID() AS IDGuia;
+END$$
+
+CREATE PROCEDURE sp_UpdateGuia(
+    IN p_IDGuia INT,
+    IN p_Nombres VARCHAR(80), IN p_Apellidos VARCHAR(80),
+    IN p_Documento VARCHAR(30), IN p_FechaNacimiento DATE,
+    IN p_Nacionalidad VARCHAR(60), IN p_Idiomas VARCHAR(200),
+    IN p_Especialidades TEXT, IN p_Destinos TEXT,
+    IN p_Certificaciones TEXT, IN p_Desempeño TINYINT,
+    IN p_Disponibilidad VARCHAR(20))
+BEGIN
+    UPDATE Guias SET
+        Nombres=p_Nombres, Apellidos=p_Apellidos, Documento=p_Documento,
+        FechaNacimiento=p_FechaNacimiento, Nacionalidad=p_Nacionalidad,
+        Idiomas=p_Idiomas, Especialidades=p_Especialidades, Destinos=p_Destinos,
+        Certificaciones=p_Certificaciones, Desempeño=p_Desempeño,
+        Disponibilidad=p_Disponibilidad
+    WHERE IDGuia=p_IDGuia;
+END$$
+
+CREATE PROCEDURE sp_DeleteGuia(IN p_IDGuia INT)
+BEGIN
+    DELETE FROM Guias WHERE IDGuia=p_IDGuia;
+END$$
+
+CREATE PROCEDURE sp_GetGuia(IN p_IDGuia INT)
+BEGIN
+    SELECT * FROM Guias WHERE IDGuia=p_IDGuia;
+END$$
+
+CREATE PROCEDURE sp_GetAllGuias()
+BEGIN
+    SELECT * FROM Guias ORDER BY Apellidos, Nombres;
+END$$
+
+
+-- ─────────────────────────────────────────────────────────────
+-- CLIENTES
+-- ─────────────────────────────────────────────────────────────
+
+CREATE PROCEDURE sp_InsertCliente(
+    IN p_Tipo VARCHAR(20), IN p_NombreRazonSocial VARCHAR(150),
+    IN p_Documento VARCHAR(30), IN p_Nacionalidad VARCHAR(60),
+    IN p_Direccion VARCHAR(160), IN p_Telefono VARCHAR(30),
+    IN p_Correo VARCHAR(100), IN p_Preferencias TEXT,
+    IN p_Historial TEXT, IN p_Fidelizacion VARCHAR(80))
+BEGIN
+    INSERT INTO Clientes(Tipo,NombreRazonSocial,Documento,Nacionalidad,
+        Direccion,Telefono,Correo,Preferencias,Historial,Fidelizacion)
+    VALUES(p_Tipo,p_NombreRazonSocial,p_Documento,p_Nacionalidad,
+        p_Direccion,p_Telefono,p_Correo,p_Preferencias,p_Historial,p_Fidelizacion);
+    SELECT LAST_INSERT_ID() AS IDCliente;
+END$$
+
+CREATE PROCEDURE sp_UpdateCliente(
+    IN p_IDCliente INT,
+    IN p_Tipo VARCHAR(20), IN p_NombreRazonSocial VARCHAR(150),
+    IN p_Documento VARCHAR(30), IN p_Nacionalidad VARCHAR(60),
+    IN p_Direccion VARCHAR(160), IN p_Telefono VARCHAR(30),
+    IN p_Correo VARCHAR(100), IN p_Preferencias TEXT,
+    IN p_Historial TEXT, IN p_Fidelizacion VARCHAR(80))
+BEGIN
+    UPDATE Clientes SET
+        Tipo=p_Tipo, NombreRazonSocial=p_NombreRazonSocial,
+        Documento=p_Documento, Nacionalidad=p_Nacionalidad,
+        Direccion=p_Direccion, Telefono=p_Telefono, Correo=p_Correo,
+        Preferencias=p_Preferencias, Historial=p_Historial,
+        Fidelizacion=p_Fidelizacion
+    WHERE IDCliente=p_IDCliente;
+END$$
+
+CREATE PROCEDURE sp_DeleteCliente(IN p_IDCliente INT)
+BEGIN
+    DELETE FROM Clientes WHERE IDCliente=p_IDCliente;
+END$$
+
+CREATE PROCEDURE sp_GetCliente(IN p_IDCliente INT)
+BEGIN
+    SELECT * FROM Clientes WHERE IDCliente=p_IDCliente;
+END$$
+
+CREATE PROCEDURE sp_GetAllClientes()
+BEGIN
+    SELECT * FROM Clientes ORDER BY NombreRazonSocial;
+END$$
+
+
+-- ─────────────────────────────────────────────────────────────
+-- ALOJAMIENTOS
+-- ─────────────────────────────────────────────────────────────
+
+CREATE PROCEDURE sp_InsertAlojamiento(
+    IN p_NombreComercial VARCHAR(120), IN p_Tipo VARCHAR(20),
+    IN p_Categoria TINYINT, IN p_Direccion VARCHAR(160),
+    IN p_Coordenadas VARCHAR(50), IN p_Contacto VARCHAR(100),
+    IN p_Habitaciones TEXT, IN p_Servicios TEXT,
+    IN p_PoliticaCancelacion TEXT, IN p_Comision DECIMAL(5,2))
+BEGIN
+    INSERT INTO Alojamientos(NombreComercial,Tipo,Categoria,Direccion,Coordenadas,
+        Contacto,Habitaciones,Servicios,PoliticaCancelacion,Comision)
+    VALUES(p_NombreComercial,p_Tipo,p_Categoria,p_Direccion,p_Coordenadas,
+        p_Contacto,p_Habitaciones,p_Servicios,p_PoliticaCancelacion,p_Comision);
+    SELECT LAST_INSERT_ID() AS IDAlojamiento;
+END$$
+
+CREATE PROCEDURE sp_UpdateAlojamiento(
+    IN p_IDAlojamiento INT,
+    IN p_NombreComercial VARCHAR(120), IN p_Tipo VARCHAR(20),
+    IN p_Categoria TINYINT, IN p_Direccion VARCHAR(160),
+    IN p_Coordenadas VARCHAR(50), IN p_Contacto VARCHAR(100),
+    IN p_Habitaciones TEXT, IN p_Servicios TEXT,
+    IN p_PoliticaCancelacion TEXT, IN p_Comision DECIMAL(5,2))
+BEGIN
+    UPDATE Alojamientos SET
+        NombreComercial=p_NombreComercial, Tipo=p_Tipo, Categoria=p_Categoria,
+        Direccion=p_Direccion, Coordenadas=p_Coordenadas, Contacto=p_Contacto,
+        Habitaciones=p_Habitaciones, Servicios=p_Servicios,
+        PoliticaCancelacion=p_PoliticaCancelacion, Comision=p_Comision
+    WHERE IDAlojamiento=p_IDAlojamiento;
+END$$
+
+CREATE PROCEDURE sp_DeleteAlojamiento(IN p_IDAlojamiento INT)
+BEGIN
+    DELETE FROM Alojamientos WHERE IDAlojamiento=p_IDAlojamiento;
+END$$
+
+CREATE PROCEDURE sp_GetAlojamiento(IN p_IDAlojamiento INT)
+BEGIN
+    SELECT * FROM Alojamientos WHERE IDAlojamiento=p_IDAlojamiento;
+END$$
+
+CREATE PROCEDURE sp_GetAllAlojamientos()
+BEGIN
+    SELECT * FROM Alojamientos ORDER BY NombreComercial;
+END$$
+
+
+-- ─────────────────────────────────────────────────────────────
+-- TRANSPORTES
+-- ─────────────────────────────────────────────────────────────
+
+CREATE PROCEDURE sp_InsertTransporte(
+    IN p_Tipo VARCHAR(20), IN p_Proveedor VARCHAR(100),
+    IN p_Ruta VARCHAR(200), IN p_Horarios TEXT,
+    IN p_Capacidad SMALLINT, IN p_Duracion VARCHAR(50),
+    IN p_ServiciosABordo TEXT, IN p_RestEquipaje TEXT,
+    IN p_Tarifa DECIMAL(10,2))
+BEGIN
+    INSERT INTO Transportes(Tipo,Proveedor,Ruta,Horarios,Capacidad,Duracion,
+        ServiciosABordo,RestEquipaje,Tarifa)
+    VALUES(p_Tipo,p_Proveedor,p_Ruta,p_Horarios,p_Capacidad,p_Duracion,
+        p_ServiciosABordo,p_RestEquipaje,p_Tarifa);
+    SELECT LAST_INSERT_ID() AS IDTransporte;
+END$$
+
+CREATE PROCEDURE sp_UpdateTransporte(
+    IN p_IDTransporte INT,
+    IN p_Tipo VARCHAR(20), IN p_Proveedor VARCHAR(100),
+    IN p_Ruta VARCHAR(200), IN p_Horarios TEXT,
+    IN p_Capacidad SMALLINT, IN p_Duracion VARCHAR(50),
+    IN p_ServiciosABordo TEXT, IN p_RestEquipaje TEXT,
+    IN p_Tarifa DECIMAL(10,2))
+BEGIN
+    UPDATE Transportes SET
+        Tipo=p_Tipo, Proveedor=p_Proveedor, Ruta=p_Ruta, Horarios=p_Horarios,
+        Capacidad=p_Capacidad, Duracion=p_Duracion, ServiciosABordo=p_ServiciosABordo,
+        RestEquipaje=p_RestEquipaje, Tarifa=p_Tarifa
+    WHERE IDTransporte=p_IDTransporte;
+END$$
+
+CREATE PROCEDURE sp_DeleteTransporte(IN p_IDTransporte INT)
+BEGIN
+    DELETE FROM Transportes WHERE IDTransporte=p_IDTransporte;
+END$$
+
+CREATE PROCEDURE sp_GetTransporte(IN p_IDTransporte INT)
+BEGIN
+    SELECT * FROM Transportes WHERE IDTransporte=p_IDTransporte;
+END$$
+
+CREATE PROCEDURE sp_GetAllTransportes()
+BEGIN
+    SELECT * FROM Transportes ORDER BY Tipo, Proveedor;
+END$$
+
+
+-- ─────────────────────────────────────────────────────────────
+-- ACTIVIDADES
+-- ─────────────────────────────────────────────────────────────
+
+CREATE PROCEDURE sp_InsertActividad(
+    IN p_Nombre VARCHAR(120), IN p_IDDestino INT,
+    IN p_Tipo VARCHAR(20), IN p_Duracion VARCHAR(50),
+    IN p_Dificultad VARCHAR(10), IN p_Equipamiento TEXT,
+    IN p_Restricciones TEXT, IN p_PrecioPorPersona DECIMAL(10,2),
+    IN p_CapacidadMax SMALLINT, IN p_IDProveedor INT)
+BEGIN
+    INSERT INTO Actividades(Nombre,IDDestino,Tipo,Duracion,Dificultad,
+        Equipamiento,Restricciones,PrecioPorPersona,CapacidadMax,IDProveedor)
+    VALUES(p_Nombre,p_IDDestino,p_Tipo,p_Duracion,p_Dificultad,
+        p_Equipamiento,p_Restricciones,p_PrecioPorPersona,p_CapacidadMax,p_IDProveedor);
+    SELECT LAST_INSERT_ID() AS IDActividad;
+END$$
+
+CREATE PROCEDURE sp_UpdateActividad(
+    IN p_IDActividad INT,
+    IN p_Nombre VARCHAR(120), IN p_IDDestino INT,
+    IN p_Tipo VARCHAR(20), IN p_Duracion VARCHAR(50),
+    IN p_Dificultad VARCHAR(10), IN p_Equipamiento TEXT,
+    IN p_Restricciones TEXT, IN p_PrecioPorPersona DECIMAL(10,2),
+    IN p_CapacidadMax SMALLINT, IN p_IDProveedor INT)
+BEGIN
+    UPDATE Actividades SET
+        Nombre=p_Nombre, IDDestino=p_IDDestino, Tipo=p_Tipo, Duracion=p_Duracion,
+        Dificultad=p_Dificultad, Equipamiento=p_Equipamiento, Restricciones=p_Restricciones,
+        PrecioPorPersona=p_PrecioPorPersona, CapacidadMax=p_CapacidadMax, IDProveedor=p_IDProveedor
+    WHERE IDActividad=p_IDActividad;
+END$$
+
+CREATE PROCEDURE sp_DeleteActividad(IN p_IDActividad INT)
+BEGIN
+    DELETE FROM Actividades WHERE IDActividad=p_IDActividad;
+END$$
+
+CREATE PROCEDURE sp_GetActividad(IN p_IDActividad INT)
+BEGIN
+    SELECT * FROM Actividades WHERE IDActividad=p_IDActividad;
+END$$
+
+CREATE PROCEDURE sp_GetAllActividades()
+BEGIN
+    SELECT a.*, d.Nombre AS NombreDestino
+    FROM Actividades a
+    LEFT JOIN Destinos d ON a.IDDestino=d.IDDestino
+    ORDER BY a.Nombre;
+END$$
+
+
+-- ─────────────────────────────────────────────────────────────
+-- PROVEEDORES
+-- ─────────────────────────────────────────────────────────────
+
+CREATE PROCEDURE sp_InsertProveedor(
+    IN p_RazonSocial VARCHAR(120), IN p_TipoServicio VARCHAR(80),
+    IN p_IDDestino INT, IN p_Direccion VARCHAR(160),
+    IN p_Telefono VARCHAR(30), IN p_Correo VARCHAR(100),
+    IN p_Contacto VARCHAR(100), IN p_Contrato DATE,
+    IN p_FormaPago VARCHAR(60), IN p_Calificacion TINYINT)
+BEGIN
+    INSERT INTO Proveedores(RazonSocial,TipoServicio,IDDestino,Direccion,Telefono,
+        Correo,Contacto,Contrato,FormaPago,Calificacion)
+    VALUES(p_RazonSocial,p_TipoServicio,p_IDDestino,p_Direccion,p_Telefono,
+        p_Correo,p_Contacto,p_Contrato,p_FormaPago,p_Calificacion);
+    SELECT LAST_INSERT_ID() AS IDProveedor;
+END$$
+
+CREATE PROCEDURE sp_UpdateProveedor(
+    IN p_IDProveedor INT,
+    IN p_RazonSocial VARCHAR(120), IN p_TipoServicio VARCHAR(80),
+    IN p_IDDestino INT, IN p_Direccion VARCHAR(160),
+    IN p_Telefono VARCHAR(30), IN p_Correo VARCHAR(100),
+    IN p_Contacto VARCHAR(100), IN p_Contrato DATE,
+    IN p_FormaPago VARCHAR(60), IN p_Calificacion TINYINT)
+BEGIN
+    UPDATE Proveedores SET
+        RazonSocial=p_RazonSocial, TipoServicio=p_TipoServicio, IDDestino=p_IDDestino,
+        Direccion=p_Direccion, Telefono=p_Telefono, Correo=p_Correo,
+        Contacto=p_Contacto, Contrato=p_Contrato, FormaPago=p_FormaPago,
+        Calificacion=p_Calificacion
+    WHERE IDProveedor=p_IDProveedor;
+END$$
+
+CREATE PROCEDURE sp_DeleteProveedor(IN p_IDProveedor INT)
+BEGIN
+    DELETE FROM Proveedores WHERE IDProveedor=p_IDProveedor;
+END$$
+
+CREATE PROCEDURE sp_GetProveedor(IN p_IDProveedor INT)
+BEGIN
+    SELECT * FROM Proveedores WHERE IDProveedor=p_IDProveedor;
+END$$
+
+CREATE PROCEDURE sp_GetAllProveedores()
+BEGIN
+    SELECT * FROM Proveedores ORDER BY RazonSocial;
+END$$
+
+
+-- ─────────────────────────────────────────────────────────────
+-- RESERVAS
+-- ─────────────────────────────────────────────────────────────
+
+CREATE PROCEDURE sp_InsertReserva(
+    IN p_IDCliente INT, IN p_IDPaquete INT,
+    IN p_FechaInicio DATE, IN p_FechaFin DATE,
+    IN p_NumAdultos TINYINT, IN p_NumNinos TINYINT,
+    IN p_SolicitudesEsp TEXT, IN p_PrecioTotal DECIMAL(12,2),
+    IN p_FormaPago VARCHAR(60), IN p_Abonos DECIMAL(12,2),
+    IN p_Estado VARCHAR(20))
+BEGIN
+    INSERT INTO Reservas(IDCliente,IDPaquete,FechaInicio,FechaFin,NumAdultos,NumNinos,
+        SolicitudesEsp,PrecioTotal,FormaPago,Abonos,Estado)
+    VALUES(p_IDCliente,p_IDPaquete,p_FechaInicio,p_FechaFin,p_NumAdultos,p_NumNinos,
+        p_SolicitudesEsp,p_PrecioTotal,p_FormaPago,p_Abonos,p_Estado);
+    SELECT LAST_INSERT_ID() AS IDReserva;
+END$$
+
+CREATE PROCEDURE sp_UpdateReserva(
+    IN p_IDReserva INT,
+    IN p_IDCliente INT, IN p_IDPaquete INT,
+    IN p_FechaInicio DATE, IN p_FechaFin DATE,
+    IN p_NumAdultos TINYINT, IN p_NumNinos TINYINT,
+    IN p_SolicitudesEsp TEXT, IN p_PrecioTotal DECIMAL(12,2),
+    IN p_FormaPago VARCHAR(60), IN p_Abonos DECIMAL(12,2),
+    IN p_Estado VARCHAR(20))
+BEGIN
+    UPDATE Reservas SET
+        IDCliente=p_IDCliente, IDPaquete=p_IDPaquete,
+        FechaInicio=p_FechaInicio, FechaFin=p_FechaFin,
+        NumAdultos=p_NumAdultos, NumNinos=p_NumNinos,
+        SolicitudesEsp=p_SolicitudesEsp, PrecioTotal=p_PrecioTotal,
+        FormaPago=p_FormaPago, Abonos=p_Abonos, Estado=p_Estado
+    WHERE IDReserva=p_IDReserva;
+END$$
+
+CREATE PROCEDURE sp_DeleteReserva(IN p_IDReserva INT)
+BEGIN
+    DELETE FROM Reservas WHERE IDReserva=p_IDReserva;
+END$$
+
+CREATE PROCEDURE sp_GetReserva(IN p_IDReserva INT)
+BEGIN
+    SELECT r.*, c.NombreRazonSocial AS Cliente, p.NombreComercial AS Paquete
+    FROM Reservas r
+    LEFT JOIN Clientes c ON r.IDCliente=c.IDCliente
+    LEFT JOIN Paquetes p ON r.IDPaquete=p.IDPaquete
+    WHERE r.IDReserva=p_IDReserva;
+END$$
+
+CREATE PROCEDURE sp_GetAllReservas()
+BEGIN
+    SELECT r.*, c.NombreRazonSocial AS Cliente, p.NombreComercial AS Paquete
+    FROM Reservas r
+    LEFT JOIN Clientes c ON r.IDCliente=c.IDCliente
+    LEFT JOIN Paquetes p ON r.IDPaquete=p.IDPaquete
+    ORDER BY r.FechaCreacion DESC;
+END$$
+
+
+-- ─────────────────────────────────────────────────────────────
+-- PROMOCIONES
+-- ─────────────────────────────────────────────────────────────
+
+CREATE PROCEDURE sp_InsertPromocion(
+    IN p_Nombre VARCHAR(120), IN p_Descripcion TEXT,
+    IN p_PaquetesAplicables TEXT, IN p_FechaInicio DATE,
+    IN p_FechaFin DATE, IN p_TipoDescuento VARCHAR(20),
+    IN p_ValorDescuento DECIMAL(10,2), IN p_Condiciones TEXT,
+    IN p_Canales VARCHAR(200), IN p_Resultados TEXT)
+BEGIN
+    INSERT INTO Promociones(Nombre,Descripcion,PaquetesAplicables,FechaInicio,FechaFin,
+        TipoDescuento,ValorDescuento,Condiciones,Canales,Resultados)
+    VALUES(p_Nombre,p_Descripcion,p_PaquetesAplicables,p_FechaInicio,p_FechaFin,
+        p_TipoDescuento,p_ValorDescuento,p_Condiciones,p_Canales,p_Resultados);
+    SELECT LAST_INSERT_ID() AS IDPromocion;
+END$$
+
+CREATE PROCEDURE sp_UpdatePromocion(
+    IN p_IDPromocion INT,
+    IN p_Nombre VARCHAR(120), IN p_Descripcion TEXT,
+    IN p_PaquetesAplicables TEXT, IN p_FechaInicio DATE,
+    IN p_FechaFin DATE, IN p_TipoDescuento VARCHAR(20),
+    IN p_ValorDescuento DECIMAL(10,2), IN p_Condiciones TEXT,
+    IN p_Canales VARCHAR(200), IN p_Resultados TEXT)
+BEGIN
+    UPDATE Promociones SET
+        Nombre=p_Nombre, Descripcion=p_Descripcion,
+        PaquetesAplicables=p_PaquetesAplicables,
+        FechaInicio=p_FechaInicio, FechaFin=p_FechaFin,
+        TipoDescuento=p_TipoDescuento, ValorDescuento=p_ValorDescuento,
+        Condiciones=p_Condiciones, Canales=p_Canales, Resultados=p_Resultados
+    WHERE IDPromocion=p_IDPromocion;
+END$$
+
+CREATE PROCEDURE sp_DeletePromocion(IN p_IDPromocion INT)
+BEGIN
+    DELETE FROM Promociones WHERE IDPromocion=p_IDPromocion;
+END$$
+
+CREATE PROCEDURE sp_GetPromocion(IN p_IDPromocion INT)
+BEGIN
+    SELECT * FROM Promociones WHERE IDPromocion=p_IDPromocion;
+END$$
+
+CREATE PROCEDURE sp_GetAllPromociones()
+BEGIN
+    SELECT * FROM Promociones ORDER BY FechaInicio DESC;
+END$$
+
+DELIMITER ;
+
+-- =============================================================
+-- FIN DEL SCRIPT
+-- =============================================================
